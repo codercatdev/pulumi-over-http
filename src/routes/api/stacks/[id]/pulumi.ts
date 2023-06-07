@@ -1,7 +1,6 @@
 import {
     LocalWorkspace,
     ConcurrentUpdateError,
-    StackAlreadyExistsError,
     StackNotFoundError
 } from "@pulumi/pulumi/automation";
 import { s3 } from "@pulumi/aws";
@@ -60,13 +59,36 @@ const createPulumiProgram = (content: string) => async () => {
     };
 };
 
-// creates new sites
-export const createHandler = (async ({ request }) => {
-    const { id, content } = await request.json();
-    const stackName = id;
+// gets info about a specific site
+export const getHandler = (async ({ params }) => {
+    const stackName = params?.id;
     try {
-        // create a new stack
-        const stack = await LocalWorkspace.createStack({
+        // select the existing stack
+        const stack = await LocalWorkspace.selectStack({
+            stackName,
+            projectName,
+            // don't need a program just to get outputs
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            program: async () => { },
+        });
+        const outs = await stack.outputs();
+        return new Response(JSON.stringify({ id: stackName, url: outs.websiteUrl.value }));
+    } catch (e) {
+        if (e instanceof StackNotFoundError) {
+            return new Response(`stack "${stackName}" does not exist`, { status: 404 });
+        } else {
+            return new Response(JSON.stringify(e), { status: 500 });
+        }
+    }
+}) satisfies RequestHandler;
+
+// updates the content for an existing site
+export const updateHandler = (async ({ request, params }) => {
+    const stackName = params?.id;
+    const { content } = await request.json();
+    try {
+        // select the existing stack
+        const stack = await LocalWorkspace.selectStack({
             stackName,
             projectName,
             // generate our pulumi program on the fly from the POST body
@@ -77,22 +99,39 @@ export const createHandler = (async ({ request }) => {
         const upRes = await stack.up({ onOutput: console.info });
         return new Response(JSON.stringify({ id: stackName, url: upRes.outputs.websiteUrl.value }));
     } catch (e) {
-        if (e instanceof StackAlreadyExistsError) {
-            return new Response(`stack "${stackName}" already exists`, { status: 409 });
+        if (e instanceof StackNotFoundError) {
+            return new Response(`stack "${stackName}" does not exist`, { status: 404 });
+        } else if (e instanceof ConcurrentUpdateError) {
+            return new Response(`stack "${stackName}" already has update in progress`, { status: 409 });
         } else {
             return new Response(JSON.stringify(e), { status: 500 });
         }
     }
 }) satisfies RequestHandler;
 
-// lists all sites
-export const listHandler = (async () => {
+// deletes a site
+export const deleteHandler = (async ({ params }) => {
+    const stackName = params.id;
     try {
-        // set up a workspace with only enough information for the list stack operations
-        const ws = await LocalWorkspace.create({ projectSettings: { name: projectName, runtime: "nodejs" } });
-        const stacks = await ws.listStacks();
-        return new Response(JSON.stringify({ ids: stacks.map(s => s.name) }));
+        // select the existing stack
+        const stack = await LocalWorkspace.selectStack({
+            stackName,
+            projectName,
+            // don't need a program for destroy
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            program: async () => { },
+        });
+        // deploy the stack, tailing the logs to console
+        await stack.destroy({ onOutput: console.info });
+        await stack.workspace.removeStack(stackName);
+        return new Response(undefined, { status: 200 });
     } catch (e) {
-        return new Response(JSON.stringify(e), { status: 500 });
+        if (e instanceof StackNotFoundError) {
+            return new Response(`stack "${stackName}" does not exist`, { status: 404 });
+        } else if (e instanceof ConcurrentUpdateError) {
+            return new Response(`stack "${stackName}" already has update in progress`, { status: 409 });
+        } else {
+            return new Response(JSON.stringify(e), { status: 500 });
+        }
     }
 }) satisfies RequestHandler;

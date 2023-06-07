@@ -8,5 +8,8 @@ module.exports = {
 	theme: {
 		extend: {}
 	},
-	plugins: [...require('@codingcatdev/blackcatui/dist/tailwind/blackcatui.cjs')()]
+	plugins: [
+		require('@tailwindcss/forms'),
+		...require('@codingcatdev/blackcatui/dist/tailwind/blackcatui.cjs')()
+	]
 };
