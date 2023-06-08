@@ -16,3 +16,17 @@ You will find all of the code needed inside of `src/routes/api/sites` and `src/r
  Default region name: [us-east-2]: us-east-2
  Default output format [None]: json
 ```
+
+## Create Site
+
+Add this to the input box and see a full page appear.
+
+```html
+<h1>Xena</h1>
+<p>A domesticated, black crazy cat.</p>
+
+<img
+	src="https://media.codingcat.dev/image/upload/q_auto,f_auto,w_800/main-codingcatdev-photo/xena-blackcatui.jpg"
+	alt="black cat sleeping"
+/>
+```

@@ -7,6 +7,7 @@ export const load = (async ({ fetch, params }) => {
 	}
 	const stacks = await stacksRes.json();
 	return {
+		id: params.id,
 		url: stacks?.url
 	}
 }) satisfies PageLoad;
